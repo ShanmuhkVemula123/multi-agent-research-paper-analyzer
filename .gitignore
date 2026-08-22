@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+frontend/dist/
+dist/
+build/
+
+# Local Database
+# Local Database
+backend/papers.db
+database/research_papers.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Backend uploads and reports (ignore contents but keep folder)
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/reports/*
+!backend/reports/.gitkeep
