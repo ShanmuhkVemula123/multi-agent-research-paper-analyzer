@@ -1,7 +1,18 @@
+import os
+import sys
+from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-import os
+
+# Ensure backend directory is in sys.path for direct or module execution
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# Load environment variables
+load_dotenv()
 
 from database import engine, Base, get_db
 import models
@@ -9,28 +20,60 @@ import schemas
 from services.pdf_reader import save_upload_file, extract_text_from_pdf
 from services.report_generator import generate_markdown_report
 from agents.coordinator_agent import coordinate_analysis
-from fastapi.responses import FileResponse
 
 # Initialize database
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Multi-Agent Research Paper Analyzer")
 
-# Configure CORS for local development with React
+# Configure CORS for local development and deployed Vercel frontend
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+frontend_url = os.getenv("FRONTEND_URL", "")
+
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+if allowed_origins_env:
+    for origin in allowed_origins_env.split(","):
+        cleaned = origin.strip()
+        if cleaned and cleaned not in origins:
+            origins.append(cleaned)
+
+if frontend_url:
+    cleaned = frontend_url.strip()
+    if cleaned and cleaned not in origins:
+        origins.append(cleaned)
+
+has_custom_origins = bool(allowed_origins_env or frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # For production, restrict this
-    allow_credentials=True,
+    allow_origins=origins if has_custom_origins else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app" if not has_custom_origins else None,
+    allow_credentials=True if has_custom_origins else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
-REPORT_DIR = "reports"
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(BASE_DIR, "uploads"))
+REPORT_DIR = os.getenv("REPORT_DIR", os.path.join(BASE_DIR, "reports"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(REPORT_DIR, exist_ok=True)
+
 
 @app.get("/")
 def read_root():
     return {"message": "Multi-Agent Research Paper Analyzer API is running"}
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": "multi-agent-research-paper-analyzer"}
+
 
 @app.post("/upload", response_model=schemas.PaperResponse)
 async def upload_paper(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -55,6 +98,7 @@ async def upload_paper(file: UploadFile = File(...), db: Session = Depends(get_d
         return db_paper
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/analyze/{paper_id}", response_model=schemas.AnalysisResponse)
 async def analyze_paper(paper_id: int, db: Session = Depends(get_db)):
@@ -92,10 +136,12 @@ async def analyze_paper(paper_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+
 @app.get("/papers", response_model=list[schemas.PaperResponse])
 def get_papers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     papers = db.query(models.Paper).offset(skip).limit(limit).all()
     return papers
+
 
 @app.get("/papers/{paper_id}", response_model=schemas.PaperResponse)
 def get_paper(paper_id: int, db: Session = Depends(get_db)):
@@ -103,6 +149,7 @@ def get_paper(paper_id: int, db: Session = Depends(get_db)):
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
     return paper
+
 
 @app.get("/reports/{paper_id}")
 def get_report(paper_id: int, db: Session = Depends(get_db)):
@@ -124,3 +171,9 @@ def get_report(paper_id: int, db: Session = Depends(get_db)):
     generate_markdown_report(paper.title, analysis_data, report_path)
     
     return FileResponse(path=report_path, filename=report_filename, media_type='text/markdown')
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

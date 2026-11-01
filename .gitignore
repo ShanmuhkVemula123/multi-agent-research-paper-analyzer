@@ -2,33 +2,59 @@
 node_modules/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Virtual Environment
+# Virtual Environments
 venv/
 env/
 .venv/
+ENV/
 
-# Environment Variables
+# Environment Variables & Secrets (Exclude all secrets, preserve examples)
 .env
-.env.local
-.env.*.local
+.env.*
+*.env
+!.env.example
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
 
 # Build outputs
 frontend/dist/
 dist/
 build/
 
-# Local Database
-# Local Database
+# Local Database Files
+*.db
+*.sqlite
+*.sqlite3
 backend/papers.db
-database/research_papers.db
+database/*.db
+database/*.sqlite
+database/*.sqlite3
+!database/.gitkeep
 
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Backend uploads and reports (ignore contents but keep folder)
+# Uploads and generated reports (ignore contents, retain directories)
+uploads/*
+!uploads/.gitkeep
+reports/*
+!reports/.gitkeep
 backend/uploads/*
 !backend/uploads/.gitkeep
 backend/reports/*
 !backend/reports/.gitkeep
+
+# Local backups and duplicate folders
+*copy*
+*backup*
+backend_prototype_backup/
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+sample_paper.pdf
